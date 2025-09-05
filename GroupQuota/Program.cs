@@ -49,7 +49,7 @@
             Console.WriteLine($"Configuration - Subscription: {defaultSubscriptionId}, Management Group: {managementGroupId}, Group Name: {groupQuotaName}");
 
             // Initialize ARM client
-            Console.WriteLine("Configuring ARM client options for centraluseuap region");
+            Console.WriteLine("Configuring ARM client options");
             
             ArmClientOptions options = new()
             {
