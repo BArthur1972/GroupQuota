@@ -14,13 +14,13 @@
         {
             try
             {
-                Console.WriteLine("Starting Group Quota Management application");
+                Console.WriteLine("Starting Group Quota Enforcement application");
                 await RunEnableGroupQuotaEnforcement();
-                Console.WriteLine("Group Quota Management application completed successfully");
+                Console.WriteLine("Group Quota Enforcement application completed successfully");
             }
             catch (RequestFailedException ex)
             {
-                Console.WriteLine($"Azure API request failed - Status: {ex.Status}, ErrorCode: {ex.ErrorCode}, Message: {ex.Message}");
+                Console.WriteLine($"Operation failed - Status: {ex.Status}, ErrorCode: {ex.ErrorCode}, Message: {ex.Message}");
                 Environment.Exit(1);
             }
             catch (Exception ex)
