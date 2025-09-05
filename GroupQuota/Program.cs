@@ -32,10 +32,18 @@
 
         private static async Task RunEnableGroupQuotaEnforcement()
         {
+            // Replace with your actual Azure subscription ID
             string defaultSubscriptionId = "f9f44809-a71d-4ea0-9635-77ac7bbfd319";
+            
+            // Replace with your management group ID
             string managementGroupId = "testmg";
+            
+            // Replace with your desired group quota name
             string groupQuotaName = "sdk-enforcement-test-group";
+            
             string resourceProviderName = "Microsoft.Compute";
+
+            // Replace with your target Azure location where you would like to enable enforcement
             AzureLocation location = new AzureLocation("centraluseuap");
 
             Console.WriteLine($"Configuration - Subscription: {defaultSubscriptionId}, Management Group: {managementGroupId}, Group Name: {groupQuotaName}");
@@ -45,9 +53,13 @@
             
             ArmClientOptions options = new()
             {
+                // This is done to target centraluseuap region specifically. 
+                // Feel free to remove the region-specific endpoint if not needed.
                 Environment = new(new Uri("https://centraluseuap.management.azure.com"), "https://management.azure.com/"),
+                //Environment = ArmEnvironment.AzurePublicCloud,
             };
-            options.SetApiVersion(new ResourceType("Microsoft.Quota/groupQuotas"), "2025-09-01");
+            // Update API version if needed for your specific requirements
+            options.SetApiVersion(new ResourceType("Microsoft.Quota/groupQuotas"), "2025-07-15");
 
             var client = new ArmClient(
                 credential: new DefaultAzureCredential(),
