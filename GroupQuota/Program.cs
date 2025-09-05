@@ -32,15 +32,14 @@
 
         private static async Task RunEnableGroupQuotaEnforcement()
         {
-            // Replace with your actual Azure subscription ID
+            // Replace with your actual Azure subscription ID.
+            // Go to aka.ms/sharedlimit to onboard your subscription if not already done.
             string defaultSubscriptionId = "f9f44809-a71d-4ea0-9635-77ac7bbfd319";
             
-            // Replace with your management group ID
+            // Replace with your management group ID.
             string managementGroupId = "testmg";
             
-            // Replace with your desired group quota name
             string groupQuotaName = "sdk-enforcement-test-group";
-            
             string resourceProviderName = "Microsoft.Compute";
 
             // Replace with your target Azure location where you would like to enable enforcement
@@ -58,8 +57,9 @@
                 Environment = new(new Uri("https://centraluseuap.management.azure.com"), "https://management.azure.com/"),
                 //Environment = ArmEnvironment.AzurePublicCloud,
             };
-            // Update API version if needed for your specific requirements
-            options.SetApiVersion(new ResourceType("Microsoft.Quota/groupQuotas"), "2025-07-15");
+            // The default API version for the Azure.ResourceManager.Quota package in this project is 2025-07-15
+            // and will be used. Uncomment the line below to override the default API version.
+            //options.SetApiVersion(new ResourceType("Microsoft.Quota/groupQuotas"), "2025-07-15");
 
             var client = new ArmClient(
                 credential: new DefaultAzureCredential(),
@@ -70,11 +70,11 @@
 
             // Create and manage group quota
             var groupQuotaEntity = await CreateGroupQuotaAsync(client, managementGroupId, groupQuotaName);
-            
-            // Add subscription to allocation group
+
+            // Add subscription to allocation group. This is required before enabling enforcement.
             await AddSubscriptionToGroupAsync(groupQuotaEntity, defaultSubscriptionId);
 
-            // Enable enforcement
+            // Enable enforcement on the allocation group
             var enforcedGroupName = await EnableEnforcementAsync(groupQuotaEntity, resourceProviderName, location, groupQuotaName);
 
             // Cleanup operations
