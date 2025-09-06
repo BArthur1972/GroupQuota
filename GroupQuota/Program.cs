@@ -14,9 +14,9 @@
         {
             try
             {
-                Console.WriteLine("Starting Group Quota Enforcement application");
+                Console.WriteLine("Starting Group Quota Enforcement");
                 await RunEnableGroupQuotaEnforcement();
-                Console.WriteLine("Group Quota Enforcement application completed successfully");
+                Console.WriteLine("Group Quota Enforcement completed successfully");
             }
             catch (RequestFailedException ex)
             {
@@ -30,54 +30,46 @@
             }
         }
 
+        /// <summary>
+        /// This method demonstrates how to enable group quota enforcement for quota group/allocation group in a management group
+        /// <para>The steps include:</para>
+        /// <para>1. Create a group quota entity</para>
+        /// <para>2. Add the subscription to the allocation group</para>
+        /// <para>3. Enable enforcement on the allocation group</para>
+        /// <para>4. Clean up resources (for demonstration purposes)</para>
+        /// </summary>
         private static async Task RunEnableGroupQuotaEnforcement()
         {
-            // Replace with your actual Azure subscription ID.
-            // Go to aka.ms/sharedlimit to onboard your subscription if not already done.
+            // Replace with your actual Azure subscription ID
+            // Go to aka.ms/sharedlimit to onboard your subscription if not already done
             string defaultSubscriptionId = "f9f44809-a71d-4ea0-9635-77ac7bbfd319";
             
-            // Replace with your management group ID.
+            // Replace with your management group ID
             string managementGroupId = "testmg";
             
             string groupQuotaName = "sdk-enforcement-test-group";
             string resourceProviderName = "Microsoft.Compute";
 
             // Replace with your target Azure location where you would like to enable enforcement
-            AzureLocation location = new AzureLocation("centraluseuap");
+            AzureLocation location = new AzureLocation("westus");
 
             Console.WriteLine($"Configuration - Subscription: {defaultSubscriptionId}, Management Group: {managementGroupId}, Group Name: {groupQuotaName}");
 
-            // Initialize ARM client
-            Console.WriteLine("Configuring ARM client options");
+            Console.WriteLine("Initializing ARM client with DefaultAzureCredential");
             
-            ArmClientOptions options = new()
-            {
-                // This is done to target centraluseuap region specifically. 
-                // Feel free to remove the region-specific endpoint if not needed.
-                Environment = new(new Uri("https://centraluseuap.management.azure.com"), "https://management.azure.com/"),
-                //Environment = ArmEnvironment.AzurePublicCloud,
-            };
-            // The default API version for the Azure.ResourceManager.Quota package in this project is 2025-07-15
-            // and will be used. Uncomment the line below to override the default API version.
-            //options.SetApiVersion(new ResourceType("Microsoft.Quota/groupQuotas"), "2025-07-15");
-
             var client = new ArmClient(
                 credential: new DefaultAzureCredential(),
-                options: options,
                 defaultSubscriptionId: defaultSubscriptionId);
 
             Console.WriteLine("ARM client initialized successfully");
 
-            // Create and manage group quota
             var groupQuotaEntity = await CreateGroupQuotaAsync(client, managementGroupId, groupQuotaName);
 
-            // Add subscription to allocation group. This is required before enabling enforcement.
+            // Add subscription to allocation group. This is required before enabling enforcement
             await AddSubscriptionToGroupAsync(groupQuotaEntity, defaultSubscriptionId);
 
-            // Enable enforcement on the allocation group
             var enforcedGroupName = await EnableEnforcementAsync(groupQuotaEntity, resourceProviderName, location, groupQuotaName);
 
-            // Cleanup operations
             await CleanupResourcesAsync(client, managementGroupId, defaultSubscriptionId, groupQuotaName, enforcedGroupName, groupQuotaEntity);
         }
 
@@ -96,7 +88,7 @@
                     Properties = new GroupQuotasEntityProperties()
                     {
                         DisplayName = groupQuotaName
-                    },
+                    }
                 };
 
                 Console.WriteLine("Submitting create or update request for group quota entity");
@@ -112,7 +104,7 @@
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to create group quota entity '{groupQuotaName}': {ex.Message}");
+                Console.WriteLine($"Failed to create group quota entity '{groupQuotaName}' in management group '{managementGroupId}' - {ex.Message}");
                 throw;
             }
         }
@@ -130,7 +122,7 @@
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to add subscription '{subscriptionId}' to allocation group: {ex.Message}");
+                Console.WriteLine($"Failed to add subscription '{subscriptionId}' to allocation group - {ex.Message}");
                 throw;
             }
         }
@@ -157,6 +149,8 @@
 
                 Console.WriteLine($"Enforcement operation completed - Provisioning State: {result.Data.Properties.ProvisioningState}, Enforcement Enabled: {result.Data.Properties.EnforcementEnabled}");
 
+                // The enforced group name is a combination of the allocation group name and the location name in the format: {groupQuotaName}-{location}
+                // For example, if the allocation group name is "sdk-enforcement-test-group" and the location is "westus", the enforced group name will be "sdk-enforcement-test-group-westus"
                 string enforcedGroupName = $"{groupQuotaName}-{location.Name}";
                 Console.WriteLine($"Enforced group name: '{enforcedGroupName}'");
 
@@ -164,7 +158,7 @@
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to enable enforcement for group quota '{groupQuotaName}' in location '{location}': {ex.Message}");
+                Console.WriteLine($"Failed to enable enforcement for group quota '{groupQuotaName}' with provider '{resourceProviderName}' in location '{location}' - {ex.Message}");
                 throw;
             }
         }
@@ -173,27 +167,20 @@
         {
             Console.WriteLine("Starting cleanup operations");
 
-            try
-            {
-                // Delete subscription from enforced group
-                await DeleteSubscriptionFromEnforcedGroupAsync(client, managementGroupId, enforcedGroupName, subscriptionId);
+            // Delete subscription from enforced group
+            // This must be done before deleting the enforced group
+            await DeleteSubscriptionFromEnforcedGroupAsync(client, managementGroupId, enforcedGroupName, subscriptionId);
 
-                // Delete subscription from allocation group
-                await DeleteSubscriptionFromAllocationGroupAsync(client, managementGroupId, groupQuotaName, subscriptionId);
+            // Delete subscription from allocation group
+            await DeleteSubscriptionFromAllocationGroupAsync(client, managementGroupId, groupQuotaName, subscriptionId);
 
-                // Delete enforced group
-                await DeleteEnforcedGroupAsync(client, managementGroupId, enforcedGroupName);
+            // Delete enforced group
+            await DeleteEnforcedGroupAsync(client, managementGroupId, enforcedGroupName);
 
-                // Delete allocation group
-                await DeleteAllocationGroupAsync(groupQuotaEntity, groupQuotaName);
+            // Delete allocation group
+            await DeleteAllocationGroupAsync(groupQuotaEntity, groupQuotaName);
 
-                Console.WriteLine("Cleanup operations completed successfully");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error occurred during cleanup operations: {ex.Message}");
-                throw;
-            }
+            Console.WriteLine("Cleanup operations completed successfully");
         }
 
         private static async Task DeleteSubscriptionFromEnforcedGroupAsync(ArmClient client, string managementGroupId, string enforcedGroupName, string subscriptionId)
@@ -210,7 +197,7 @@
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to delete subscription '{subscriptionId}' from enforced group '{enforcedGroupName}': {ex.Message}");
+                Console.WriteLine($"Failed to remove subscription '{subscriptionId}' from enforced group '{enforcedGroupName}' in management group '{managementGroupId}' - {ex.Message}");
                 throw;
             }
         }
@@ -229,7 +216,7 @@
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to delete subscription '{subscriptionId}' from allocation group '{groupQuotaName}': {ex.Message}");
+                Console.WriteLine($"Failed to remove subscription '{subscriptionId}' from allocation group '{groupQuotaName}' in management group '{managementGroupId}' - {ex.Message}");
                 throw;
             }
         }
@@ -248,7 +235,7 @@
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to delete enforced group '{enforcedGroupName}': {ex.Message}");
+                Console.WriteLine($"Failed to delete enforced group '{enforcedGroupName}' from management group '{managementGroupId}' - {ex.Message}");
                 throw;
             }
         }
@@ -265,7 +252,7 @@
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to delete allocation group '{groupQuotaName}': {ex.Message}");
+                Console.WriteLine($"Failed to delete allocation group '{groupQuotaName}' - {ex.Message}");
                 throw;
             }
         }
