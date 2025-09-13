@@ -7,6 +7,7 @@
     using Azure.ResourceManager.ManagementGroups;
     using Azure.ResourceManager.Quota;
     using Azure.ResourceManager.Quota.Models;
+    using System.ClientModel.Primitives;
 
     internal class Program
     {
@@ -133,7 +134,7 @@
             {
                 Console.WriteLine($"Enabling enforcement for group quota '{groupQuotaName}' with resource provider '{resourceProviderName}' in location '{location}'");
 
-                GroupQuotasEnforcementStatusCollection groupQuotaEnforcementStatusCollection = groupQuotaEntity.GetGroupQuotasEnforcementStatuses(resourceProviderName);
+                GroupQuotasEnforcementStatusCollection groupQuotaEnforcementStatusCollection = groupQuotaEntity.GetGroupQuotasEnforcementStatuses();
 
                 GroupQuotasEnforcementStatusData data = new GroupQuotasEnforcementStatusData
                 {
@@ -144,17 +145,38 @@
                 };
 
                 Console.WriteLine("Submitting enforcement enable request");
-                ArmOperation<GroupQuotasEnforcementStatusResource> lro = await groupQuotaEnforcementStatusCollection.CreateOrUpdateAsync(WaitUntil.Completed, location, data);
-                GroupQuotasEnforcementStatusResource result = lro.Value;
+                ArmOperation<GroupQuotasEnforcementStatusResource> lro = await groupQuotaEnforcementStatusCollection.CreateOrUpdateAsync(WaitUntil.Started, resourceProviderName, location, data);
+                
+                string? enforcedGroupName = null;
+                Response rawResponse = lro.GetRawResponse();
 
-                Console.WriteLine($"Enforcement operation completed - Provisioning State: {result.Data.Properties.ProvisioningState}, Enforcement Enabled: {result.Data.Properties.EnforcementEnabled}");
+                Console.WriteLine($"Initial enforcement operation response status: {rawResponse.Status}, response content: {rawResponse.Content}");
+
+                // Use ModelReaderWriter to deserialize the data portion of the response
+                var enforcementStatusData = ModelReaderWriter.Read<GroupQuotasEnforcementStatusData>(
+                    rawResponse.Content,
+                    ModelReaderWriterOptions.Json);
+
+                enforcedGroupName = enforcementStatusData!.Properties.EnforcedGroupName;
+                Console.WriteLine($"Enforced group name: {enforcedGroupName}");
+                Console.WriteLine($"Provisioning State: {enforcementStatusData.Properties.ProvisioningState}");
+
+                do
+                {
+                    Console.WriteLine("Enforcement operation in progress... polling for status");
+                    await Task.Delay(TimeSpan.FromSeconds(5));
+                    await lro.UpdateStatusAsync();
+                }
+                while (!lro.HasCompleted);
+
+                var finalResult = lro.Value.Data;
+                Console.WriteLine(
+                    $"Enforcement operation completed - Provisioning State: {finalResult.Properties?.ProvisioningState}, " +
+                    $"Enforcement Enabled: {finalResult.Properties?.EnforcementEnabled}");
 
                 // The enforced group name is a combination of the allocation group name and the location name in the format: {groupQuotaName}-{location}
                 // For example, if the allocation group name is "sdk-enforcement-test-group" and the location is "westus", the enforced group name will be "sdk-enforcement-test-group-westus"
-                string enforcedGroupName = $"{groupQuotaName}-{location.Name}";
-                Console.WriteLine($"Enforced group name: '{enforcedGroupName}'");
-
-                return enforcedGroupName;
+                return enforcedGroupName ?? $"{groupQuotaName}-{location}";
             }
             catch (Exception ex)
             {
@@ -229,7 +251,7 @@
 
                 ResourceIdentifier enforcedGroupQuotaEntityResourceId = GroupQuotaEntityResource.CreateResourceIdentifier(managementGroupId, enforcedGroupName);
                 GroupQuotaEntityResource enforcedGroupQuotaEntity = client.GetGroupQuotaEntityResource(enforcedGroupQuotaEntityResourceId);
-                await enforcedGroupQuotaEntity.DeleteAsync(WaitUntil.Started);
+                await enforcedGroupQuotaEntity.DeleteAsync(WaitUntil.Completed);
 
                 Console.WriteLine($"Successfully deleted enforced group '{enforcedGroupName}'");
             }

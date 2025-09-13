@@ -9,7 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="Azure.Identity" Version="1.15.0" />
-    <PackageReference Include="Azure.ResourceManager.Quota" Version="1.2.0-alpha.20250904.1" />
+    <PackageReference Include="Azure.ResourceManager.Quota" Version="1.2.0-alpha.20250912.1" />
   </ItemGroup>
 
 </Project>
